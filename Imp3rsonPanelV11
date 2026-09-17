@@ -1,0 +1,672 @@
+-- ============================================
+-- 💠 Imp3rson Panel v11 — PARTE 1/2
+-- Núcleo, estado, UI, hub, botão flutuante
+-- ============================================
+
+local CoreGui      = game:GetService("CoreGui")
+local Players      = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UIS          = game:GetService("UserInputService")
+local RunService   = game:GetService("RunService")
+
+local LP = Players.LocalPlayer
+
+----------------------------------------------------------------
+-- CONFIG
+----------------------------------------------------------------
+local CONFIG = {
+    ACCENT        = Color3.fromRGB(139, 0, 0),
+    ACCENT_BRIGHT = Color3.fromRGB(255, 40, 40),
+    GREEN         = Color3.fromRGB(60, 160, 80),
+    BG_DARK       = Color3.fromRGB(18, 18, 18),
+    BG_CARD       = Color3.fromRGB(32, 32, 32),
+    BG_INPUT      = Color3.fromRGB(40, 40, 40),
+    TEXT_DIM      = Color3.fromRGB(180, 180, 180),
+    FLOAT_POS     = UDim2.new(0, 20, 0, 100),
+    FLOAT_SIZE    = 52,
+}
+
+----------------------------------------------------------------
+-- ESTADO GLOBAL (compartilhado com a Parte 2)
+----------------------------------------------------------------
+_G.Imp3rsonState = {
+    fly         = false,
+    noclip      = false,
+    infJump     = false,
+    superJump   = false,
+    spider      = false,
+    gravity     = false,
+    flySpeed    = 50,
+    walkSpeed   = 16,
+    jumpPower   = 50,
+    gravityValue = 196.2,
+    defaultGravity = workspace.Gravity,
+    hubOpen     = false,
+    config      = CONFIG,
+    LP          = LP,
+    CoreGui     = CoreGui,
+    UIS         = UIS,
+    RunService  = RunService,
+    TweenService = TweenService,
+}
+
+local State = _G.Imp3rsonState
+
+----------------------------------------------------------------
+-- UTILS
+----------------------------------------------------------------
+local function isSafe(v) return typeof(v) == "Instance" and v.Parent ~= nil end
+local function getChar() return LP.Character end
+local function getHum() local c = getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
+local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
+
+function State.notify(text, color)
+    color = color or CONFIG.ACCENT_BRIGHT
+    pcall(function()
+        local g = CoreGui:FindFirstChild("Imp3rsonNotify")
+        if not g then
+            g = Instance.new("ScreenGui")
+            g.Name = "Imp3rsonNotify"
+            g.ResetOnSpawn = false
+            g.IgnoreGuiInset = true
+            g.DisplayOrder = 100
+            g.Parent = CoreGui
+        end
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 260, 0, 44)
+        frame.Position = UDim2.new(0.5, -130, 0, -60)
+        frame.BackgroundColor3 = CONFIG.BG_DARK
+        frame.BorderSizePixel = 0
+        frame.Parent = g
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = color; stroke.Thickness = 2; stroke.Parent = frame
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -20, 1, 0)
+        lbl.Position = UDim2.new(0, 12, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 13
+        lbl.TextWrapped = true
+        lbl.Parent = frame
+        TweenService:Create(frame, TweenInfo.new(0.3),
+            { Position = UDim2.new(0.5, -130, 0, 20) }):Play()
+        task.delay(2.2, function()
+            if isSafe(frame) then
+                local t = TweenService:Create(frame, TweenInfo.new(0.3),
+                    { Position = UDim2.new(0.5, -130, 0, -60) })
+                t:Play()
+                t.Completed:Connect(function()
+                    if isSafe(frame) then frame:Destroy() end
+                end)
+            end
+        end)
+    end)
+end
+
+local notify = State.notify
+
+----------------------------------------------------------------
+-- TOGGLE DO HUB
+----------------------------------------------------------------
+local function setHubVisibility(open)
+    State.hubOpen = open
+    local hub = CoreGui:FindFirstChild("Imp3rsonHub")
+    if hub then hub.Enabled = open end
+end
+
+----------------------------------------------------------------
+-- BOTÃO FLUTUANTE
+----------------------------------------------------------------
+local function createFloatingButton()
+    if CoreGui:FindFirstChild("Imp3rsonFloat") then return end
+    local g = Instance.new("ScreenGui")
+    g.Name = "Imp3rsonFloat"
+    g.ResetOnSpawn = false
+    g.IgnoreGuiInset = true
+    g.DisplayOrder = 99
+    g.Parent = CoreGui
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, CONFIG.FLOAT_SIZE, 0, CONFIG.FLOAT_SIZE)
+    btn.Position = CONFIG.FLOAT_POS
+    btn.BackgroundColor3 = CONFIG.ACCENT
+    btn.BorderSizePixel = 0
+    btn.Text = "💠"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 26
+    btn.AutoButtonColor = false
+    btn.Parent = g
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+    local s = Instance.new("UIStroke")
+    s.Color = CONFIG.ACCENT_BRIGHT; s.Thickness = 2; s.Parent = btn
+
+    local dragging, dragStart, startPos
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = btn.Position
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            if dragStart then
+                local d = input.Position - dragStart
+                if math.abs(d.X) < 10 and math.abs(d.Y) < 10 then
+                    setHubVisibility(not State.hubOpen)
+                end
+            end
+            dragStart = nil
+        end
+    end)
+    btn.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.Touch then
+            local d = input.Position - dragStart
+            btn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end)
+end
+
+----------------------------------------------------------------
+-- UI HELPERS (exportados pra Parte 2)
+----------------------------------------------------------------
+function State.makeToggleRow(parent, order, emoji, label, getState, setState)
+    local card = Instance.new("TextButton")
+    card.Size = UDim2.new(1, -16, 0, 40)
+    card.BackgroundColor3 = CONFIG.BG_CARD
+    card.BorderSizePixel = 0
+    card.Text = ""
+    card.AutoButtonColor = false
+    card.LayoutOrder = order
+    card.Parent = parent
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -60, 1, 0)
+    lbl.Position = UDim2.new(0, 14, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = emoji .. " " .. label .. " Off"
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = card
+
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.new(0, 12, 0, 12)
+    dot.Position = UDim2.new(1, -26, 0.5, -6)
+    dot.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    dot.BorderSizePixel = 0
+    dot.Parent = card
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+
+    local function refresh()
+        local on = getState()
+        lbl.Text = emoji .. " " .. label .. (on and " On" or " Off")
+        dot.BackgroundColor3 = on and CONFIG.GREEN or Color3.fromRGB(80, 80, 80)
+        card.BackgroundColor3 = on and Color3.fromRGB(40, 60, 40) or CONFIG.BG_CARD
+    end
+
+    card.MouseButton1Click:Connect(function()
+        setState(not getState())
+        refresh()
+    end)
+    refresh()
+    return card
+end
+
+function State.makeSliderRow(parent, order, emoji, label, default, minV, maxV, step, onChange)
+    local wrap = Instance.new("Frame")
+    wrap.Size = UDim2.new(1, -16, 0, 76)
+    wrap.BackgroundTransparency = 1
+    wrap.LayoutOrder = order
+    wrap.Parent = parent
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 22)
+    title.BackgroundTransparency = 1
+    title.Text = emoji .. " " .. label
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 13
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = wrap
+
+    local inputBox = Instance.new("TextBox")
+    inputBox.Size = UDim2.new(0.5, -4, 0, 40)
+    inputBox.Position = UDim2.new(0, 0, 0, 26)
+    inputBox.BackgroundColor3 = CONFIG.BG_INPUT
+    inputBox.BorderSizePixel = 0
+    inputBox.Text = tostring(default)
+    inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    inputBox.Font = Enum.Font.GothamBold
+    inputBox.TextSize = 14
+    inputBox.PlaceholderText = tostring(default)
+    inputBox.Parent = wrap
+    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 8)
+
+    local applyBtn = Instance.new("TextButton")
+    applyBtn.Size = UDim2.new(0.5, -4, 0, 40)
+    applyBtn.Position = UDim2.new(0.5, 4, 0, 26)
+    applyBtn.BackgroundColor3 = CONFIG.GREEN
+    applyBtn.BorderSizePixel = 0
+    applyBtn.Text = "Aplicar"
+    applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    applyBtn.Font = Enum.Font.GothamBold
+    applyBtn.TextSize = 14
+    applyBtn.Parent = wrap
+    Instance.new("UICorner", applyBtn).CornerRadius = UDim.new(0, 8)
+
+    applyBtn.MouseButton1Click:Connect(function()
+        local n = tonumber(inputBox.Text)
+        if not n then
+            notify("⚠️ Valor inválido", Color3.fromRGB(255, 180, 0))
+            return
+        end
+        n = math.clamp(n, minV, maxV)
+        inputBox.Text = tostring(n)
+        onChange(n)
+    end)
+    return wrap
+end
+
+----------------------------------------------------------------
+-- HUB (janela)
+----------------------------------------------------------------
+local function createHub()
+    if CoreGui:FindFirstChild("Imp3rsonHub") then
+        CoreGui.Imp3rsonHub.Enabled = State.hubOpen
+        return
+    end
+    local g = Instance.new("ScreenGui")
+    g.Name = "Imp3rsonHub"
+    g.ResetOnSpawn = false
+    g.IgnoreGuiInset = true
+    g.DisplayOrder = 98
+    g.Enabled = State.hubOpen
+    g.Parent = CoreGui
+
+    local main = Instance.new("Frame")
+    main.Size = UDim2.new(0, 280, 0, 480)
+    main.Position = UDim2.new(0.5, -140, 0.5, -240)
+    main.BackgroundColor3 = CONFIG.BG_DARK
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Parent = g
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 14)
+    local s1 = Instance.new("UIStroke")
+    s1.Color = CONFIG.ACCENT_BRIGHT; s1.Thickness = 2; s1.Parent = main
+
+    -- Header
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 46)
+    header.BackgroundColor3 = CONFIG.ACCENT
+    header.BorderSizePixel = 0
+    header.Parent = main
+    local hc = Instance.new("UICorner"); hc.CornerRadius = UDim.new(0, 14); hc.Parent = header
+    local hcFix = Instance.new("Frame")
+    hcFix.Size = UDim2.new(1, 0, 0, 14)
+    hcFix.Position = UDim2.new(0, 0, 1, -14)
+    hcFix.BackgroundColor3 = CONFIG.ACCENT
+    hcFix.BorderSizePixel = 0
+    hcFix.Parent = header
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -60, 1, 0)
+    title.Position = UDim2.new(0, 14, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "💠 Imp3rson Panel"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+
+    local btnClose = Instance.new("TextButton")
+    btnClose.Size = UDim2.new(0, 32, 0, 32)
+    btnClose.Position = UDim2.new(1, -40, 0, 7)
+    btnClose.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+    btnClose.BorderSizePixel = 0
+    btnClose.Text = "✕"
+    btnClose.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btnClose.Font = Enum.Font.GothamBold
+    btnClose.TextSize = 16
+    btnClose.Parent = header
+    Instance.new("UICorner", btnClose).CornerRadius = UDim.new(0, 8)
+    btnClose.MouseButton1Click:Connect(function() setHubVisibility(false) end)
+
+    -- Drag header
+    local dragH, startH, startPH
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragH = true; startH = input.Position; startPH = main.Position
+        end
+    end)
+    header.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then dragH = false end
+    end)
+    header.InputChanged:Connect(function(input)
+        if not dragH then return end
+        if input.UserInputType == Enum.UserInputType.Touch then
+            local d = input.Position - startH
+            main.Position = UDim2.new(
+                startPH.X.Scale, startPH.X.Offset + d.X,
+                startPH.Y.Scale, startPH.Y.Offset + d.Y)
+        end
+    end)
+
+    -- ScrollingFrame
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = "Scroll"
+    scroll.Size = UDim2.new(1, 0, 1, -52)
+    scroll.Position = UDim2.new(0, 0, 0, 52)
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 4
+    scroll.ScrollBarImageColor3 = CONFIG.ACCENT_BRIGHT
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.Parent = main
+
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Parent = scroll
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop = UDim.new(0, 10)
+    pad.PaddingBottom = UDim.new(0, 10)
+    pad.Parent = scroll
+end
+
+----------------------------------------------------------------
+-- BOOT PARTE 1
+----------------------------------------------------------------
+createFloatingButton()
+createHub()
+notify("💠 Imp3rson v11 — Parte 1 carregada", CONFIG.ACCENT_BRIGHT)
+print("[✅] Imp3rson Panel v11 — PARTE 1/2 OK (núcleo + UI)")
+
+-- ============================================
+-- 💠 Imp3rson Panel v11 — PARTE 2/2
+-- Funções (Fly, Noclip, etc) + botões no hub
+-- ============================================
+
+local State = _G.Imp3rsonState
+if not State then
+    warn("[Imp3rson] Rode a PARTE 1 primeiro!")
+    return
+end
+
+local CONFIG      = State.config
+local LP          = State.LP
+local CoreGui     = State.CoreGui
+local UIS         = State.UIS
+local RunService  = State.RunService
+local notify      = State.notify
+
+local function getChar() return LP.Character end
+local function getHum() local c = getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
+local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
+
+----------------------------------------------------------------
+-- FUNÇÕES
+----------------------------------------------------------------
+
+-- FLY
+local flyConnection
+local function setFly(enabled)
+    State.fly = enabled
+    if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
+    if not enabled then
+        local hrp = getHRP()
+        if hrp then hrp.Velocity = Vector3.zero end
+        return
+    end
+
+    local bodyGyro, bodyVel
+    flyConnection = RunService.RenderStepped:Connect(function()
+        local hrp = getHRP()
+        if not hrp then return end
+
+        if not bodyVel or bodyVel.Parent ~= hrp then
+            if bodyVel then bodyVel:Destroy() end
+            if bodyGyro then bodyGyro:Destroy() end
+            bodyVel = Instance.new("BodyVelocity")
+            bodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            bodyVel.Velocity = Vector3.zero
+            bodyVel.Parent = hrp
+            bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+            bodyGyro.P = 1000
+            bodyGyro.Parent = hrp
+        end
+
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.zero
+        local speed = State.flySpeed
+
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+
+        if moveDir.Magnitude > 0 then
+            bodyVel.Velocity = moveDir.Unit * speed
+        else
+            bodyVel.Velocity = Vector3.zero
+        end
+        bodyGyro.CFrame = cam.CFrame
+    end)
+
+    notify("🛫 Fly ativado", CONFIG.GREEN)
+end
+
+-- NOCLIP
+local noclipConnection
+local function setNoclip(enabled)
+    State.noclip = enabled
+    if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end
+    if not enabled then return end
+
+    noclipConnection = RunService.Stepped:Connect(function()
+        local char = getChar()
+        if not char then return end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+    notify("👻 Noclip ativado", CONFIG.GREEN)
+end
+
+-- INFINITE JUMP
+local infJumpConnection
+local function setInfJump(enabled)
+    State.infJump = enabled
+    if infJumpConnection then infJumpConnection:Disconnect(); infJumpConnection = nil end
+    if not enabled then return end
+
+    infJumpConnection = UIS.JumpRequest:Connect(function()
+        local hum = getHum()
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end)
+    notify("♾️ Infinite Jump ativado", CONFIG.GREEN)
+end
+
+-- SUPER JUMP
+local function setSuperJump(enabled)
+    State.superJump = enabled
+    local hum = getHum()
+    if not hum then return end
+    if enabled then
+        hum.UseJumpPower = true
+        hum.JumpPower = 150
+        notify("🦘 Super Jump ativado", CONFIG.GREEN)
+    else
+        hum.JumpPower = State.jumpPower
+        notify("🦘 Super Jump desativado", Color3.fromRGB(150, 150, 150))
+    end
+end
+
+-- SPIDER
+local spiderConnection
+local function setSpider(enabled)
+    State.spider = enabled
+    if spiderConnection then spiderConnection:Disconnect(); spiderConnection = nil end
+    if not enabled then
+        local hrp = getHRP()
+        if hrp then
+            local sf = hrp:FindFirstChild("SpiderForce")
+            if sf then sf:Destroy() end
+        end
+        return
+    end
+
+    spiderConnection = RunService.Heartbeat:Connect(function()
+        local hrp = getHRP()
+        if not hrp then return end
+        local force = hrp:FindFirstChild("SpiderForce")
+        if not force then
+            force = Instance.new("BodyVelocity")
+            force.Name = "SpiderForce"
+            force.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            force.Velocity = Vector3.zero
+            force.Parent = hrp
+        end
+        local hum = getHum()
+        if hum and hum.FloorMaterial == Enum.Material.Air then
+            force.Velocity = Vector3.new(0, 30, 0)
+        else
+            force.Velocity = Vector3.zero
+        end
+    end)
+    notify("🕷️ Spider ativado", CONFIG.GREEN)
+end
+
+-- GRAVITY
+local function setGravity(enabled)
+    State.gravity = enabled
+    if enabled then
+        workspace.Gravity = State.gravityValue
+        notify("🌀 Gravity alterada", CONFIG.GREEN)
+    else
+        workspace.Gravity = State.defaultGravity
+        notify("🌀 Gravity restaurada", Color3.fromRGB(150, 150, 150))
+    end
+end
+
+----------------------------------------------------------------
+-- POPULAR UI
+----------------------------------------------------------------
+task.wait(0.5)
+
+local hub = CoreGui:FindFirstChild("Imp3rsonHub")
+local scroll = hub and hub:FindFirstChild("Main", true)
+if not scroll then
+    -- busca o ScrollingFrame dentro do hub
+    for _, d in ipairs(hub:GetDescendants()) do
+        if d:IsA("ScrollingFrame") and d.Name == "Scroll" then
+            scroll = d
+            break
+        end
+    end
+end
+
+if not scroll then
+    warn("[Imp3rson] Não achei o ScrollingFrame do hub")
+    return
+end
+
+local makeToggleRow = State.makeToggleRow
+local makeSliderRow = State.makeSliderRow
+
+-- TOGGLES
+makeToggleRow(scroll, 1, "🛫", "Fly",
+    function() return State.fly end,
+    function(v) setFly(v) end)
+
+makeToggleRow(scroll, 2, "👻", "Noclip",
+    function() return State.noclip end,
+    function(v) setNoclip(v) end)
+
+makeToggleRow(scroll, 3, "♾️", "Infinite Jump",
+    function() return State.infJump end,
+    function(v) setInfJump(v) end)
+
+makeToggleRow(scroll, 4, "🦘", "Super Jump",
+    function() return State.superJump end,
+    function(v) setSuperJump(v) end)
+
+makeToggleRow(scroll, 5, "🕷️", "Spider",
+    function() return State.spider end,
+    function(v) setSpider(v) end)
+
+makeToggleRow(scroll, 6, "🌀", "Gravity",
+    function() return State.gravity end,
+    function(v) setGravity(v) end)
+
+-- SLIDERS
+makeSliderRow(scroll, 7, "✈️", "Fly Speed", State.flySpeed, 1, 500, 1,
+    function(v)
+        State.flySpeed = v
+        notify("✈️ Fly Speed = " .. v, CONFIG.GREEN)
+    end)
+
+makeSliderRow(scroll, 8, "🏃", "Speed", State.walkSpeed, 1, 500, 1,
+    function(v)
+        State.walkSpeed = v
+        local hum = getHum()
+        if hum then hum.WalkSpeed = v end
+        notify("🏃 Speed = " .. v, CONFIG.GREEN)
+    end)
+
+makeSliderRow(scroll, 9, "🦘", "Jump", State.jumpPower, 1, 500, 1,
+    function(v)
+        State.jumpPower = v
+        local hum = getHum()
+        if hum then
+            hum.UseJumpPower = true
+            hum.JumpPower = v
+        end
+        notify("🦘 Jump = " .. v, CONFIG.GREEN)
+    end)
+
+makeSliderRow(scroll, 10, "🌀", "Gravity", State.gravityValue, 1, 500, 1,
+    function(v)
+        State.gravityValue = v
+        if State.gravity then workspace.Gravity = v end
+        notify("🌀 Gravity = " .. v, CONFIG.GREEN)
+    end)
+
+----------------------------------------------------------------
+-- RESPAWN
+----------------------------------------------------------------
+LP.CharacterAdded:Connect(function(char)
+    char:WaitForChild("Humanoid", 10)
+    task.wait(0.5)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = State.walkSpeed
+        hum.UseJumpPower = true
+        hum.JumpPower = State.jumpPower
+    end
+    if State.noclip then
+        task.wait(0.3)
+        setNoclip(true)
+    end
+end)
+
+----------------------------------------------------------------
+-- BOOT PARTE 2
+----------------------------------------------------------------
+notify("💠 Imp3rson v11 pronto!", CONFIG.ACCENT_BRIGHT)
+print("[✅] Imp3rson Panel v11 — PARTE 2/2 OK (funções + botões)")
