@@ -1,5 +1,5 @@
 -- ============================================
--- 💠 Imp3rson Panel v11 — PARTE 1/2
+-- 💠 Imp3rson Panel v12 — PARTE 1/2
 -- Núcleo, estado, UI, hub, botão flutuante
 -- ============================================
 
@@ -27,7 +27,7 @@ local CONFIG = {
 }
 
 ----------------------------------------------------------------
--- ESTADO GLOBAL (compartilhado com a Parte 2)
+-- ESTADO GLOBAL
 ----------------------------------------------------------------
 _G.Imp3rsonState = {
     fly         = false,
@@ -56,9 +56,6 @@ local State = _G.Imp3rsonState
 -- UTILS
 ----------------------------------------------------------------
 local function isSafe(v) return typeof(v) == "Instance" and v.Parent ~= nil end
-local function getChar() return LP.Character end
-local function getHum() local c = getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
-local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 
 function State.notify(text, color)
     color = color or CONFIG.ACCENT_BRIGHT
@@ -174,11 +171,11 @@ local function createFloatingButton()
 end
 
 ----------------------------------------------------------------
--- UI HELPERS (exportados pra Parte 2)
+-- UI HELPERS
 ----------------------------------------------------------------
 function State.makeToggleRow(parent, order, emoji, label, getState, setState)
     local card = Instance.new("TextButton")
-    card.Size = UDim2.new(1, -16, 0, 40)
+    card.Size = UDim2.new(1, -20, 0, 46)  -- 👈 maior
     card.BackgroundColor3 = CONFIG.BG_CARD
     card.BorderSizePixel = 0
     card.Text = ""
@@ -223,7 +220,7 @@ end
 
 function State.makeSliderRow(parent, order, emoji, label, default, minV, maxV, step, onChange)
     local wrap = Instance.new("Frame")
-    wrap.Size = UDim2.new(1, -16, 0, 76)
+    wrap.Size = UDim2.new(1, -20, 0, 82)  -- 👈 maior
     wrap.BackgroundTransparency = 1
     wrap.LayoutOrder = order
     wrap.Parent = parent
@@ -239,8 +236,8 @@ function State.makeSliderRow(parent, order, emoji, label, default, minV, maxV, s
     title.Parent = wrap
 
     local inputBox = Instance.new("TextBox")
-    inputBox.Size = UDim2.new(0.5, -4, 0, 40)
-    inputBox.Position = UDim2.new(0, 0, 0, 26)
+    inputBox.Size = UDim2.new(0.5, -4, 0, 42)
+    inputBox.Position = UDim2.new(0, 0, 0, 28)
     inputBox.BackgroundColor3 = CONFIG.BG_INPUT
     inputBox.BorderSizePixel = 0
     inputBox.Text = tostring(default)
@@ -252,8 +249,8 @@ function State.makeSliderRow(parent, order, emoji, label, default, minV, maxV, s
     Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 8)
 
     local applyBtn = Instance.new("TextButton")
-    applyBtn.Size = UDim2.new(0.5, -4, 0, 40)
-    applyBtn.Position = UDim2.new(0.5, 4, 0, 26)
+    applyBtn.Size = UDim2.new(0.5, -4, 0, 42)
+    applyBtn.Position = UDim2.new(0.5, 4, 0, 28)
     applyBtn.BackgroundColor3 = CONFIG.GREEN
     applyBtn.BorderSizePixel = 0
     applyBtn.Text = "Aplicar"
@@ -277,7 +274,7 @@ function State.makeSliderRow(parent, order, emoji, label, default, minV, maxV, s
 end
 
 ----------------------------------------------------------------
--- HUB (janela)
+-- HUB
 ----------------------------------------------------------------
 local function createHub()
     if CoreGui:FindFirstChild("Imp3rsonHub") then
@@ -293,8 +290,8 @@ local function createHub()
     g.Parent = CoreGui
 
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 280, 0, 480)
-    main.Position = UDim2.new(0.5, -140, 0.5, -240)
+    main.Size = UDim2.new(0, 280, 0, 500)
+    main.Position = UDim2.new(0.5, -140, 0.5, -250)
     main.BackgroundColor3 = CONFIG.BG_DARK
     main.BorderSizePixel = 0
     main.Active = true
@@ -375,12 +372,15 @@ local function createHub()
     scroll.Parent = main
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 8)
+    layout.Padding = UDim.new(0, 14)  -- 👈 mais espaço
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = scroll
+
     local pad = Instance.new("UIPadding")
-    pad.PaddingTop = UDim.new(0, 10)
-    pad.PaddingBottom = UDim.new(0, 10)
+    pad.PaddingTop = UDim.new(0, 16)     -- 👈 mais espaço
+    pad.PaddingBottom = UDim.new(0, 16)
+    pad.PaddingLeft = UDim.new(0, 4)
+    pad.PaddingRight = UDim.new(0, 4)
     pad.Parent = scroll
 end
 
@@ -389,12 +389,12 @@ end
 ----------------------------------------------------------------
 createFloatingButton()
 createHub()
-notify("💠 Imp3rson v11 — Parte 1 carregada", CONFIG.ACCENT_BRIGHT)
-print("[✅] Imp3rson Panel v11 — PARTE 1/2 OK (núcleo + UI)")
+notify("💠 Imp3rson v12 — Parte 1 carregada", CONFIG.ACCENT_BRIGHT)
+print("[✅] Imp3rson Panel v12 — PARTE 1/2 OK")
 
 -- ============================================
--- 💠 Imp3rson Panel v11 — PARTE 2/2
--- Funções (Fly, Noclip, etc) + botões no hub
+-- 💠 Imp3rson Panel v12 — PARTE 2/2
+-- Funções + botões no hub
 -- ============================================
 
 local State = _G.Imp3rsonState
@@ -415,19 +415,82 @@ local function getHum() local c = getChar(); return c and c:FindFirstChildOfClas
 local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 
 ----------------------------------------------------------------
--- FUNÇÕES
+-- FLY (mobile — com botões na tela)
 ----------------------------------------------------------------
-
--- FLY
 local flyConnection
+local flyGui
+local flyDir = { forward = false, back = false, left = false, right = false, up = false, down = false }
+
+local function createFlyButtons()
+    if flyGui then flyGui:Destroy() end
+    flyGui = Instance.new("ScreenGui")
+    flyGui.Name = "Imp3rsonFlyControls"
+    flyGui.ResetOnSpawn = false
+    flyGui.IgnoreGuiInset = true
+    flyGui.DisplayOrder = 97
+    flyGui.Parent = CoreGui
+
+    local controls = {
+        { name = "forward", text = "▲", pos = UDim2.new(0.5, -30, 1, -240) },
+        { name = "back",    text = "▼", pos = UDim2.new(0.5, -30, 1, -120) },
+        { name = "left",    text = "◄", pos = UDim2.new(0.5, -110, 1, -180) },
+        { name = "right",   text = "►", pos = UDim2.new(0.5, 50, 1, -180) },
+        { name = "up",      text = "⬆", pos = UDim2.new(1, -150, 1, -180) },
+        { name = "down",    text = "⬇", pos = UDim2.new(1, -80, 1, -180) },
+    }
+
+    for _, ctrl in ipairs(controls) do
+        local btn = Instance.new("TextButton")
+        btn.Name = "Fly_" .. ctrl.name
+        btn.Size = UDim2.new(0, 56, 0, 56)
+        btn.Position = ctrl.pos
+        btn.BackgroundColor3 = CONFIG.ACCENT
+        btn.BackgroundTransparency = 0.15
+        btn.BorderSizePixel = 0
+        btn.Text = ctrl.text
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 24
+        btn.AutoButtonColor = false
+        btn.Parent = flyGui
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+        local st = Instance.new("UIStroke")
+        st.Color = CONFIG.ACCENT_BRIGHT; st.Thickness = 2; st.Parent = btn
+
+        btn.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                flyDir[ctrl.name] = true
+                btn.BackgroundColor3 = CONFIG.ACCENT_BRIGHT
+            end
+        end)
+        btn.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                flyDir[ctrl.name] = false
+                btn.BackgroundColor3 = CONFIG.ACCENT
+            end
+        end)
+    end
+end
+
 local function setFly(enabled)
     State.fly = enabled
     if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
+
     if not enabled then
+        if flyGui then flyGui:Destroy(); flyGui = nil end
+        for k in pairs(flyDir) do flyDir[k] = false end
         local hrp = getHRP()
-        if hrp then hrp.Velocity = Vector3.zero end
+        if hrp then
+            hrp.Velocity = Vector3.zero
+            local bv = hrp:FindFirstChild("ImpFlyVel")
+            if bv then bv:Destroy() end
+            local bg = hrp:FindFirstChild("ImpFlyGyro")
+            if bg then bg:Destroy() end
+        end
         return
     end
+
+    createFlyButtons()
 
     local bodyGyro, bodyVel
     flyConnection = RunService.RenderStepped:Connect(function()
@@ -438,10 +501,12 @@ local function setFly(enabled)
             if bodyVel then bodyVel:Destroy() end
             if bodyGyro then bodyGyro:Destroy() end
             bodyVel = Instance.new("BodyVelocity")
+            bodyVel.Name = "ImpFlyVel"
             bodyVel.MaxForce = Vector3.new(1e5, 1e5, 1e5)
             bodyVel.Velocity = Vector3.zero
             bodyVel.Parent = hrp
             bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.Name = "ImpFlyGyro"
             bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
             bodyGyro.P = 1000
             bodyGyro.Parent = hrp
@@ -451,12 +516,21 @@ local function setFly(enabled)
         local moveDir = Vector3.zero
         local speed = State.flySpeed
 
+        -- Teclado (PC)
         if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
         if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
         if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+
+        -- Mobile (botões na tela)
+        if flyDir.forward then moveDir += cam.CFrame.LookVector end
+        if flyDir.back    then moveDir -= cam.CFrame.LookVector end
+        if flyDir.left    then moveDir -= cam.CFrame.RightVector end
+        if flyDir.right   then moveDir += cam.CFrame.RightVector end
+        if flyDir.up      then moveDir += Vector3.new(0, 1, 0) end
+        if flyDir.down    then moveDir -= Vector3.new(0, 1, 0) end
 
         if moveDir.Magnitude > 0 then
             bodyVel.Velocity = moveDir.Unit * speed
@@ -466,10 +540,12 @@ local function setFly(enabled)
         bodyGyro.CFrame = cam.CFrame
     end)
 
-    notify("🛫 Fly ativado", CONFIG.GREEN)
+    notify("🛫 Fly ativado — use os botões na tela", CONFIG.GREEN)
 end
 
+----------------------------------------------------------------
 -- NOCLIP
+----------------------------------------------------------------
 local noclipConnection
 local function setNoclip(enabled)
     State.noclip = enabled
@@ -488,7 +564,9 @@ local function setNoclip(enabled)
     notify("👻 Noclip ativado", CONFIG.GREEN)
 end
 
+----------------------------------------------------------------
 -- INFINITE JUMP
+----------------------------------------------------------------
 local infJumpConnection
 local function setInfJump(enabled)
     State.infJump = enabled
@@ -502,7 +580,9 @@ local function setInfJump(enabled)
     notify("♾️ Infinite Jump ativado", CONFIG.GREEN)
 end
 
+----------------------------------------------------------------
 -- SUPER JUMP
+----------------------------------------------------------------
 local function setSuperJump(enabled)
     State.superJump = enabled
     local hum = getHum()
@@ -517,7 +597,9 @@ local function setSuperJump(enabled)
     end
 end
 
+----------------------------------------------------------------
 -- SPIDER
+----------------------------------------------------------------
 local spiderConnection
 local function setSpider(enabled)
     State.spider = enabled
@@ -552,12 +634,26 @@ local function setSpider(enabled)
     notify("🕷️ Spider ativado", CONFIG.GREEN)
 end
 
--- GRAVITY
+----------------------------------------------------------------
+-- GRAVITY (corrigida — não trava mais)
+----------------------------------------------------------------
 local function setGravity(enabled)
     State.gravity = enabled
+    local hum = getHum()
     if enabled then
-        workspace.Gravity = State.gravityValue
-        notify("🌀 Gravity alterada", CONFIG.GREEN)
+        -- Nunca deixa a gravidade menor que 20 (evita personagem flutuando travado)
+        local g = State.gravityValue
+        if g < 20 then g = 20 end
+        workspace.Gravity = g
+        -- Reseta a velocidade vertical pra não travar
+        local hrp = getHRP()
+        if hrp then
+            hrp.Velocity = Vector3.new(hrp.Velocity.X, 0, hrp.Velocity.Z)
+        end
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Freefall)
+        end
+        notify("🌀 Gravity = " .. g, CONFIG.GREEN)
     else
         workspace.Gravity = State.defaultGravity
         notify("🌀 Gravity restaurada", Color3.fromRGB(150, 150, 150))
@@ -570,9 +666,8 @@ end
 task.wait(0.5)
 
 local hub = CoreGui:FindFirstChild("Imp3rsonHub")
-local scroll = hub and hub:FindFirstChild("Main", true)
-if not scroll then
-    -- busca o ScrollingFrame dentro do hub
+local scroll
+if hub then
     for _, d in ipairs(hub:GetDescendants()) do
         if d:IsA("ScrollingFrame") and d.Name == "Scroll" then
             scroll = d
@@ -640,7 +735,8 @@ makeSliderRow(scroll, 9, "🦘", "Jump", State.jumpPower, 1, 500, 1,
         notify("🦘 Jump = " .. v, CONFIG.GREEN)
     end)
 
-makeSliderRow(scroll, 10, "🌀", "Gravity", State.gravityValue, 1, 500, 1,
+-- ⚠️ Gravity mínimo 20 agora
+makeSliderRow(scroll, 10, "🌀", "Gravity", State.gravityValue, 20, 500, 1,
     function(v)
         State.gravityValue = v
         if State.gravity then workspace.Gravity = v end
@@ -668,5 +764,5 @@ end)
 ----------------------------------------------------------------
 -- BOOT PARTE 2
 ----------------------------------------------------------------
-notify("💠 Imp3rson v11 pronto!", CONFIG.ACCENT_BRIGHT)
-print("[✅] Imp3rson Panel v11 — PARTE 2/2 OK (funções + botões)")
+notify("💠 Imp3rson v12 pronto!", CONFIG.ACCENT_BRIGHT)
+print("[✅] Imp3rson Panel v12 — PARTE 2/2 OK")
