@@ -415,13 +415,13 @@ local function getHum() local c = getChar(); return c and c:FindFirstChildOfClas
 local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 
 ----------------------------------------------------------------
--- FLY (mobile — com botões na tela)
+-- FLY (joystick mobile + teclado PC + botões de altura)
 ----------------------------------------------------------------
 local flyConnection
+local flyUpDown = { up = false, down = false }
 local flyGui
-local flyDir = { forward = false, back = false, left = false, right = false, up = false, down = false }
 
-local function createFlyButtons()
+local function createFlyUpDownButtons()
     if flyGui then flyGui:Destroy() end
     flyGui = Instance.new("ScreenGui")
     flyGui.Name = "Imp3rsonFlyControls"
@@ -431,18 +431,14 @@ local function createFlyButtons()
     flyGui.Parent = CoreGui
 
     local controls = {
-        { name = "forward", text = "▲", pos = UDim2.new(0.5, -30, 1, -240) },
-        { name = "back",    text = "▼", pos = UDim2.new(0.5, -30, 1, -120) },
-        { name = "left",    text = "◄", pos = UDim2.new(0.5, -110, 1, -180) },
-        { name = "right",   text = "►", pos = UDim2.new(0.5, 50, 1, -180) },
-        { name = "up",      text = "⬆", pos = UDim2.new(1, -150, 1, -180) },
-        { name = "down",    text = "⬇", pos = UDim2.new(1, -80, 1, -180) },
+        { name = "up",   text = "⬆", pos = UDim2.new(1, -70, 1, -230) },
+        { name = "down", text = "⬇", pos = UDim2.new(1, -70, 1, -160) },
     }
 
     for _, ctrl in ipairs(controls) do
         local btn = Instance.new("TextButton")
         btn.Name = "Fly_" .. ctrl.name
-        btn.Size = UDim2.new(0, 56, 0, 56)
+        btn.Size = UDim2.new(0, 54, 0, 54)
         btn.Position = ctrl.pos
         btn.BackgroundColor3 = CONFIG.ACCENT
         btn.BackgroundTransparency = 0.15
@@ -459,13 +455,13 @@ local function createFlyButtons()
 
         btn.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch then
-                flyDir[ctrl.name] = true
+                flyUpDown[ctrl.name] = true
                 btn.BackgroundColor3 = CONFIG.ACCENT_BRIGHT
             end
         end)
         btn.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch then
-                flyDir[ctrl.name] = false
+                flyUpDown[ctrl.name] = false
                 btn.BackgroundColor3 = CONFIG.ACCENT
             end
         end)
@@ -478,7 +474,8 @@ local function setFly(enabled)
 
     if not enabled then
         if flyGui then flyGui:Destroy(); flyGui = nil end
-        for k in pairs(flyDir) do flyDir[k] = false end
+        flyUpDown.up = false
+        flyUpDown.down = false
         local hrp = getHRP()
         if hrp then
             hrp.Velocity = Vector3.zero
@@ -487,14 +484,17 @@ local function setFly(enabled)
             local bg = hrp:FindFirstChild("ImpFlyGyro")
             if bg then bg:Destroy() end
         end
+        local hum = getHum()
+        if hum then hum.PlatformStand = false end
         return
     end
 
-    createFlyButtons()
+    createFlyUpDownButtons()
 
     local bodyGyro, bodyVel
     flyConnection = RunService.RenderStepped:Connect(function()
         local hrp = getHRP()
+        local hum = getHum()
         if not hrp then return end
 
         if not bodyVel or bodyVel.Parent ~= hrp then
@@ -513,34 +513,43 @@ local function setFly(enabled)
         end
 
         local cam = workspace.CurrentCamera
-        local moveDir = Vector3.zero
         local speed = State.flySpeed
+        local moveVec = Vector3.zero
 
-        -- Teclado (PC)
-        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0, 1, 0) end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir -= Vector3.new(0, 1, 0) end
+        -- 🎮 JOYSTICK MOBILE (lê a direção do humanoid)
+        if hum and hum.MoveDirection.Magnitude > 0 then
+            local md = hum.MoveDirection
+            -- MoveDirection já vem em world space, então usamos direto
+            moveVec += md
+        end
 
-        -- Mobile (botões na tela)
-        if flyDir.forward then moveDir += cam.CFrame.LookVector end
-        if flyDir.back    then moveDir -= cam.CFrame.LookVector end
-        if flyDir.left    then moveDir -= cam.CFrame.RightVector end
-        if flyDir.right   then moveDir += cam.CFrame.RightVector end
-        if flyDir.up      then moveDir += Vector3.new(0, 1, 0) end
-        if flyDir.down    then moveDir -= Vector3.new(0, 1, 0) end
+        -- ⌨️ TECLADO (PC)
+        local camForward = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+        local camRight   = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
+        if camForward.Magnitude > 0 then camForward = camForward.Unit end
+        if camRight.Magnitude > 0 then camRight = camRight.Unit end
 
-        if moveDir.Magnitude > 0 then
-            bodyVel.Velocity = moveDir.Unit * speed
+        if UIS:IsKeyDown(Enum.KeyCode.W) then moveVec += camForward end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then moveVec -= camForward end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then moveVec -= camRight end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then moveVec += camRight end
+
+        -- 🔼🔽 SUBIR/DESCER
+        local vertical = 0
+        if UIS:IsKeyDown(Enum.KeyCode.Space) or flyUpDown.up then vertical += 1 end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) or flyUpDown.down then vertical -= 1 end
+        moveVec += Vector3.new(0, vertical, 0)
+
+        if moveVec.Magnitude > 0 then
+            bodyVel.Velocity = moveVec.Unit * speed
         else
             bodyVel.Velocity = Vector3.zero
         end
+
         bodyGyro.CFrame = cam.CFrame
     end)
 
-    notify("🛫 Fly ativado — use os botões na tela", CONFIG.GREEN)
+    notify("🛫 Fly ativado — use o joystick", CONFIG.GREEN)
 end
 
 ----------------------------------------------------------------
@@ -598,40 +607,88 @@ local function setSuperJump(enabled)
 end
 
 ----------------------------------------------------------------
--- SPIDER
+-- SPIDER (sobe paredes automaticamente ao encostar)
 ----------------------------------------------------------------
 local spiderConnection
+local spiderForce
+
 local function setSpider(enabled)
     State.spider = enabled
     if spiderConnection then spiderConnection:Disconnect(); spiderConnection = nil end
+
     if not enabled then
         local hrp = getHRP()
         if hrp then
             local sf = hrp:FindFirstChild("SpiderForce")
             if sf then sf:Destroy() end
         end
+        spiderForce = nil
+        notify("🕷️ Spider desativado", Color3.fromRGB(150, 150, 150))
         return
     end
 
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+
     spiderConnection = RunService.Heartbeat:Connect(function()
+        local char = getChar()
         local hrp = getHRP()
-        if not hrp then return end
-        local force = hrp:FindFirstChild("SpiderForce")
-        if not force then
-            force = Instance.new("BodyVelocity")
-            force.Name = "SpiderForce"
-            force.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-            force.Velocity = Vector3.zero
-            force.Parent = hrp
-        end
         local hum = getHum()
-        if hum and hum.FloorMaterial == Enum.Material.Air then
-            force.Velocity = Vector3.new(0, 30, 0)
+        if not char or not hrp or not hum then return end
+
+        -- Atualiza o filtro (exclui o próprio personagem)
+        params.FilterDescendantsInstances = { char }
+
+        -- Cria/reutiliza o BodyVelocity
+        if not spiderForce or spiderForce.Parent ~= hrp then
+            if spiderForce then spiderForce:Destroy() end
+            spiderForce = Instance.new("BodyVelocity")
+            spiderForce.Name = "SpiderForce"
+            spiderForce.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+            spiderForce.Velocity = Vector3.zero
+            spiderForce.Parent = hrp
+        end
+
+        -- 🔍 Raycast nas 4 direções (frente, trás, esquerda, direita)
+        local origin = hrp.Position
+        local dirs = {
+            hrp.CFrame.LookVector,
+            -hrp.CFrame.LookVector,
+            hrp.CFrame.RightVector,
+            -hrp.CFrame.RightVector,
+        }
+
+        local touchingWall = false
+        for _, dir in ipairs(dirs) do
+            -- Ignora componente vertical (só paredes, não chão/teto)
+            local horizontalDir = Vector3.new(dir.X, 0, dir.Z)
+            if horizontalDir.Magnitude > 0 then
+                horizontalDir = horizontalDir.Unit
+                local result = workspace:Raycast(origin, horizontalDir * 3.5, params)
+                if result and result.Instance then
+                    -- Confirma que é parede (normal quase horizontal)
+                    local normal = result.Normal
+                    if math.abs(normal.Y) < 0.7 then
+                        touchingWall = true
+                        break
+                    end
+                end
+            end
+        end
+
+        -- 🧗 Se tá encostado em parede → sobe
+        if touchingWall then
+            spiderForce.Velocity = Vector3.new(0, 35, 0)
+            -- Força o estado Freefall pra não "grudar" no chão
+            if hum.FloorMaterial ~= Enum.Material.Air then
+                hum:ChangeState(Enum.HumanoidStateType.Freefall)
+            end
         else
-            force.Velocity = Vector3.zero
+            spiderForce.Velocity = Vector3.zero
         end
     end)
-    notify("🕷️ Spider ativado", CONFIG.GREEN)
+
+    notify("🕷️ Spider ativado — encoste na parede", CONFIG.GREEN)
 end
 
 ----------------------------------------------------------------
